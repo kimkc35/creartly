@@ -1,0 +1,29 @@
+---
+alwaysApply: true
+---
+
+# 앱인토스 프레임워크 참고 룰
+
+기능 구현 시 **앱인토스 공식 문서**를 참고해 주세요. API·SDK는 아래에서 확인할 수 있어요.
+
+## 문서 URL
+
+| 구분 | URL | 용도 |
+|------|-----|------|
+| **API** | [시작하기 · API](https://developers-apps-in-toss.toss.im/api/overview.html) | 서버 연동 API (mTLS, 결제·로그인 등) |
+| **SDK (프레임워크)** | [한 눈에 보기 · SDK](https://developers-apps-in-toss.toss.im/bedrock/reference/framework/시작하기/overview.html) | WebView/React Native SDK 기능 전체 목록 |
+
+## SDK 기능 구현 시
+
+- **사진·앨범**: [앨범 가져오기 (fetchAlbumPhotos)](https://developers-apps-in-toss.toss.im/bedrock/reference/framework/사진/fetchAlbumPhotos.html) — 앨범에서 사진 목록 불러오기, 권한 처리
+- **카메라**: [카메라로 사진 촬영하기 (openCamera)](https://developers-apps-in-toss.toss.im/bedrock/reference/framework/카메라/openCamera.html)
+- **결제**: 토스페이·인앱결제 등은 해당 전용 룰(toss-pay-payment 등) 참고
+- **로그인·인증**: [토스 로그인](https://developers-apps-in-toss.toss.im/bedrock/reference/framework/로그인/appLogin.html) 등
+
+새로 디바이스/플랫폼 기능(사진, 카메라, 위치, 저장소 등)을 넣을 때는 **SDK 한 눈에 보기**에서 해당 기능이 있는지 먼저 확인하고, 있으면 네이티브 HTML/브라우저 API 대신 **앱인토스 SDK**를 사용해 주세요.
+
+## 체크리스트 (기능 추가 시)
+
+1. [ ] 해당 기능이 [SDK 한 눈에 보기](https://developers-apps-in-toss.toss.im/bedrock/reference/framework/시작하기/overview.html)에 있나요?
+2. [ ] 있으면 `@apps-in-toss/web-framework`(또는 문서에 안내된 패키지)에서 제공 API를 사용했나요?
+3. [ ] 권한·에러 처리(FetchAlbumPhotosPermissionError 등)를 문서대로 했나요?

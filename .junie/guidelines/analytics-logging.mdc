@@ -1,0 +1,74 @@
+---
+alwaysApply: true
+---
+
+# 앱인토스 로깅(이벤트) 가이드
+
+[앱인토스 로그(이벤트) 가이드](https://developers-apps-in-toss.toss.im/analytics/logging.html)를 참고해, **새 화면이나 중요한 버튼/이벤트를 추가할 때 반드시 로깅을 함께 추가**해 주세요.  
+콘솔 **분석 > 이벤트**에서 어떤 작가를 많이 보고, 구매하고, 리뷰하는지 분석할 수 있도록 합니다.
+
+## 사용 API
+
+- `Analytics`는 `@apps-in-toss/web-framework`에서 import 해요.
+- `Analytics.screen(params)` — 화면 진입 시
+- `Analytics.click(params)` — 버튼/요소 클릭 시
+- `Analytics.impression(params)` — 요소가 화면에 노출될 때 (선택)
+
+## 네이밍 규칙
+
+- **화면**: `log_name: "{화면_설명}_screen"` (예: `artist_detail_screen`)
+- **클릭**: `log_name: "{동작}_button_click"` 또는 `"{동작}_click"` (예: `purchase_button_click`, `review_register`)
+- 분석 가능하도록 **엔티티 ID**를 파라미터로 넣어 주세요 (예: `artist_id`, `artist_name`).
+
+## 새 화면 추가 시
+
+1. 해당 화면 컴포넌트가 마운트될 때 `Analytics.screen()`을 호출해 주세요.
+2. `log_name`과 함께 분석에 필요한 파라미터를 넣어 주세요 (예: `artist_id`, `artist_name`, `screen_name`).
+
+```ts
+import { Analytics } from '@apps-in-toss/web-framework';
+
+useEffect(() => {
+  Analytics.screen({
+    log_name: 'artist_detail_screen',
+    artist_id: artist.id,
+    artist_name: artist.name,
+  });
+}, [artist.id, artist.name]);
+```
+
+## 새 버튼/이벤트 추가 시
+
+1. **결제·구매·신청·등록** 같은 전환에 해당하는 버튼을 추가할 때는 클릭 시 `Analytics.click()`을 호출해 주세요.
+2. `log_name`과 함께 어떤 대상을 대상으로 한 행동인지 파라미터로 넣어 주세요 (예: `artist_id`, `rating`, `button_name`).
+
+```ts
+import { Analytics } from '@apps-in-toss/web-framework';
+
+// 결제/구매 버튼 클릭
+Analytics.click({
+  log_name: 'purchase_button_click',
+  artist_id: artistId,
+  button_name: 'payment_button',
+});
+
+// 리뷰 등록 완료 시
+Analytics.click({
+  log_name: 'review_register',
+  artist_id: artistId,
+  rating,
+});
+```
+
+## 체크리스트 (새 화면/이벤트 작업 시)
+
+1. [ ] 새 **화면**을 만들었나요? → 마운트 시 `Analytics.screen()` 추가
+2. [ ] **결제·구매·신청·리뷰 등록** 같은 버튼/동작을 추가했나요? → 실행 시 `Analytics.click()` 추가
+3. [ ] `log_name`이 콘솔에서 구분하기 쉬운 이름인가요? (예: `artist_detail_screen`, `purchase_button_click`)
+4. [ ] 분석에 필요한 **파라미터**를 넣었나요? (예: `artist_id`, `artist_name`, `rating`)
+5. [ ] 개인정보·민감 정보는 로깅하지 않았나요?
+
+## 참고
+
+- SDK 버전 `0.0.26` 이상에서 데이터 확인 가능해요.
+- 샌드박스/출시 준비 단계 데이터는 제공되지 않고, **실제 런칭 후** 데이터부터 콘솔에 집계돼요.

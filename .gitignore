@@ -27,3 +27,6 @@ dist-ssr
 
 apps-in-toss-examples-main
 .env
+
+.junie/*
+.cursor/*

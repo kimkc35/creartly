@@ -1,0 +1,78 @@
+---
+alwaysApply: true
+---
+
+# 토스페이(Toss Pay) 결제 가이드
+
+[앱인토스 개발자센터 결제 API](https://developers-apps-in-toss.toss.im/)를 참고해, **결제·환불·상태 조회** 구현 시 아래 규칙을 지켜 주세요.
+
+## API 레퍼런스
+
+| 용도 | 문서 |
+|------|------|
+| 결제 생성 | [makePayment](https://developers-apps-in-toss.toss.im/api/makePayment.html) |
+| 결제 실행(승인) | [executePayment](https://developers-apps-in-toss.toss.im/api/executePayment.html) |
+| 결제 상태 조회 | [getPaymentStatus](https://developers-apps-in-toss.toss.im/api/getPaymentStatus.html) |
+| 결제 환불 | [refundPayment](https://developers-apps-in-toss.toss.im/api/refundPayment.html) |
+
+## 결제 플로우
+
+1. **결제 생성 (makePayment)**  
+   서버에서 `POST /api-partner/v1/apps-in-toss/pay/make-payment` 호출 → `payToken` 발급.
+2. **사용자 결제**  
+   발급된 정보로 토스 결제 창/플로우에서 사용자가 결제 완료.
+3. **결제 실행 (executePayment)**  
+   서버에서 `POST /api-partner/v1/apps-in-toss/pay/execute-payment`에 `payToken`, `orderNo` 등 전달해 최종 승인.
+4. **상태 조회·환불**  
+   필요 시 `getPaymentStatus`로 상태 확인, `refundPayment`로 환불 처리.
+
+## 구현 원칙
+
+### 1. 서버에서 토스 API 호출
+
+- **클라이언트는 토스 결제 API를 직접 호출하지 않는다.**  
+  시크릿·파트너 인증은 Firebase Functions 등 **백엔드에서만** 처리해요.
+- Functions에서는 다음을 사용해요.
+  - **인증**: `Authorization: Basic {base64(TOSS_SECRET_KEY:)}`
+  - **사용자 식별**: `x-toss-user-key: {userKey}` (결제 생성·실행·환불 시)
+  - **Base URL**: `https://pay-apps-in-toss-api.toss.im`
+
+### 2. 결제 생성 (makePayment) 파라미터
+
+- 필수: `orderNo`, `productDesc`, `amount`, `amountTaxFree`, (서버에서) `userKey`.
+- 선택: `isTestPayment` (테스트 시 `true`).
+- 응답에서 `payToken`을 받아, **결제 실행 단계와 사용자 안내 문구**에 사용해요.
+
+### 3. 결제 실행 (executePayment) 파라미터
+
+- 필수: `userKey`, `payToken`.
+- 선택: `orderNo`, `isTestPayment`.
+- 결제 생성 후 **같은 주문에 대해 한 번만** 실행해요. 실패 시 에러 메시지를 사용자에게 해요체로 안내해 주세요.
+
+### 4. 결제 상태 조회 (getPaymentStatus)
+
+- 결제 완료 여부·상태를 확인할 때 사용해요.
+- 문서: [getPaymentStatus](https://developers-apps-in-toss.toss.im/api/getPaymentStatus.html).  
+  필요 시 `orderNo` 등으로 조회 후 UI에 반영해 주세요.
+
+### 5. 결제 환불 (refundPayment)
+
+- 전체/부분 환불 시 서버에서만 호출해요.
+- 문서: [refundPayment](https://developers-apps-in-toss.toss.im/api/refundPayment.html).  
+  환불 사유·금액 등 파라미터는 API 스펙을 따르고, 사용자 문구는 **UX 라이팅 룰(해요체)**에 맞춰 주세요.
+
+## 클라이언트(프론트) 규칙
+
+- **결제·환불 요청**은 모두 **Firebase Functions**를 경유해요.  
+  예: `makeTossPayment`, `executeTossPayment` (필요 시 `getPaymentStatus`, `refundPayment`용 Function 추가).
+- **에러 메시지**는 사용자 노출용으로 **해요체**로 통일해요.  
+  예: "결제 생성을 완료하지 못했어요.", "결제 승인을 완료하지 못했어요.", "잠시 후 다시 시도해 주세요."
+- **결제 완료·실패** 시 [analytics-logging 룰](.cursor/rules/analytics-logging.mdc)에 따라 `Analytics.click`으로 `purchase_button_click` 등 적절한 이벤트를 남겨 주세요.
+
+## 체크리스트 (결제 관련 작업 시)
+
+1. [ ] 토스 결제 API 호출이 **서버(Functions)**에서만 이루어지나요?
+2. [ ] `makePayment` → (사용자 결제) → `executePayment` 순서를 지키고 있나요?
+3. [ ] `payToken`을 안전하게 한 번만 사용하고, 노출·재사용을 막고 있나요?
+4. [ ] 에러·안내 문구가 **해요체**인가요?
+5. [ ] 결제 시도·완료 시 **Analytics.click**을 호출했나요?

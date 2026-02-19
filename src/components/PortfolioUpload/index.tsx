@@ -1,8 +1,10 @@
 /** @jsxImportSource @emotion/react */
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { css } from '@emotion/react';
 import { Button, IconButton, TextField, TextArea } from '@toss/tds-mobile';
 import { useImageUpload } from '../../hooks/useImageUpload';
+import { AlbumPhotoPicker } from '../AlbumPhotoPicker';
+import { ErrorAlertDialog } from '../ErrorAlertDialog';
 
 interface PortfolioUploadProps {
   artistId: string;
@@ -15,27 +17,23 @@ export function PortfolioUpload({ artistId, onSuccess }: PortfolioUploadProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showAlbumPicker, setShowAlbumPicker] = useState(false);
+  const [alertState, setAlertState] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
 
   const { uploadImage, uploading, progress, error, reset } = useImageUpload(artistId);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      
-      // 미리보기 URL 생성
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result as string);
-      };
-      reader.readAsDataURL(selectedFile);
+  const handleAlbumPhotosSelected = (selected: { file: File; previewUrl: string }[]) => {
+    const first = selected[0];
+    if (first) {
+      setFile(first.file);
+      setPreviewUrl(first.previewUrl);
     }
+    setShowAlbumPicker(false);
   };
 
   const handleUpload = async () => {
     if (!file || !title.trim()) {
-      alert('이미지와 제목을 입력해주세요.');
+      setAlertState({ open: true, message: '이미지와 제목을 입력해 주세요.' });
       return;
     }
 
@@ -46,19 +44,13 @@ export function PortfolioUpload({ artistId, onSuccess }: PortfolioUploadProps) {
     });
 
     if (result.success) {
-      alert('업로드 완료!');
-      // 폼 초기화
+      setAlertState({ open: true, message: '올렸어요!' });
       setFile(null);
       setPreviewUrl(null);
       setTitle('');
       setDescription('');
       setTags('');
       reset();
-      
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      
       onSuccess?.();
     }
   };
@@ -70,10 +62,6 @@ export function PortfolioUpload({ artistId, onSuccess }: PortfolioUploadProps) {
     setDescription('');
     setTags('');
     reset();
-    
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
   return (
@@ -93,20 +81,28 @@ export function PortfolioUpload({ artistId, onSuccess }: PortfolioUploadProps) {
             />
           </div>
         ) : (
-          <label css={fileLabelStyle}>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              css={fileInputStyle}
-            />
-            <div css={uploadPromptStyle}>
-              <span css={uploadIconStyle}>📸</span>
-              <p>클릭하여 이미지 선택</p>
-              <p css={uploadHintStyle}>JPG, PNG, GIF (최대 10MB)</p>
-            </div>
-          </label>
+          <>
+            {showAlbumPicker && (
+              <AlbumPhotoPicker
+                isOpen={showAlbumPicker}
+                onClose={() => setShowAlbumPicker(false)}
+                onSelect={handleAlbumPhotosSelected}
+                maxSelection={1}
+              />
+            )}
+            <button
+              type="button"
+              css={fileLabelStyle}
+              onClick={() => setShowAlbumPicker(true)}
+              aria-label="이미지 선택"
+            >
+              <div css={uploadPromptStyle}>
+                <span css={uploadIconStyle}>📸</span>
+                <p>클릭해서 이미지를 선택해 주세요</p>
+                <p css={uploadHintStyle}>JPG, PNG, GIF (최대 10MB)</p>
+              </div>
+            </button>
+          </>
         )}
       </div>
 
@@ -115,9 +111,10 @@ export function PortfolioUpload({ artistId, onSuccess }: PortfolioUploadProps) {
           <div css={fieldStyle}>
             <label css={labelStyle}>제목 *</label>
             <TextField
+              variant="box"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="작품 제목을 입력하세요"
+              placeholder="작품 제목을 입력해 주세요"
               css={inputStyle}
               maxLength={50}
             />
@@ -126,9 +123,10 @@ export function PortfolioUpload({ artistId, onSuccess }: PortfolioUploadProps) {
           <div css={fieldStyle}>
             <label css={labelStyle}>설명</label>
             <TextArea
+              variant="box"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="작품에 대한 설명을 입력하세요"
+              placeholder="작품 설명을 입력해 주세요"
               css={textareaStyle}
               rows={4}
               maxLength={500}
@@ -138,6 +136,7 @@ export function PortfolioUpload({ artistId, onSuccess }: PortfolioUploadProps) {
           <div css={fieldStyle}>
             <label css={labelStyle}>태그 (쉼표로 구분)</label>
             <TextField
+              variant="box"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               placeholder="예: 웨딩, 야외, 자연광"
@@ -173,11 +172,17 @@ export function PortfolioUpload({ artistId, onSuccess }: PortfolioUploadProps) {
               disabled={uploading || !title.trim()}
               size="large"
             >
-              {uploading ? '업로드 중...' : '업로드'}
+              {uploading ? '업로드하는 중이에요' : '업로드'}
             </Button>
           </div>
         </div>
       )}
+
+      <ErrorAlertDialog
+        open={alertState.open}
+        message={alertState.message}
+        onClose={() => setAlertState({ open: false, message: '' })}
+      />
     </div>
   );
 }
@@ -203,10 +208,10 @@ const uploadAreaStyle = css`
 const fileLabelStyle = css`
   display: block;
   cursor: pointer;
-`;
-
-const fileInputStyle = css`
-  display: none;
+  border: none;
+  background: none;
+  width: 100%;
+  padding: 0;
 `;
 
 const uploadPromptStyle = css`

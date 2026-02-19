@@ -1,0 +1,533 @@
+---
+alwaysApply: true
+---
+
+# Creartly UI 디자인 가이드
+
+## 컴포넌트 사용 원칙: TDS Mobile 우선
+
+### 기본 원칙
+- **UI 컴포넌트는 우선적으로 `@toss/tds-mobile`(TDS Mobile)을 사용한다.**
+- 버튼, 입력 필드, 텍스트, 아이콘, 리스트 등은 TDS Mobile에 해당 컴포넌트가 있으면 해당 컴포넌트를 사용한다.
+- TDS Mobile에 없는 기능만 네이티브 HTML 요소나 다른 라이브러리로 구현한다.
+
+### TDS Mobile 사용 대상 (우선 사용)
+| 용도 | TDS Mobile 컴포넌트 | 비고 |
+|------|---------------------|------|
+| 버튼 | `Button`, `TextButton`, `IconButton` | variant, size 활용 |
+| 텍스트 | `Text` | typography, color, fontWeight |
+| 입력 | `TextField`, `TextArea` | variant="box" 등 |
+| 아이콘 | `Asset.Icon` | frameShape, name, color |
+| 별점 | `Rating` | variant="iconOnly" 또는 "full" |
+| 리스트 행 | `ListRow` | border, padding, left/contents |
+| 기타 | 패키지 문서 참고 | 필요 시 공식 문서 확인 |
+
+### import 규칙
+```ts
+// 필요한 것만 named import
+import { Button, Text, TextField, Asset } from '@toss/tds-mobile';
+
+// Asset 아이콘 사용
+<Asset.Icon
+  frameShape={Asset.frameShape.CleanW24}
+  name="icon-name-mono"
+  color="#6C4D38"
+  aria-hidden={true}
+/>
+```
+
+### TDS Mobile 사용 시 주의
+- **fontWeight**: `Text`의 `fontWeight`는 `"bold"` | `"medium"` | `"regular"` 등 문자열만 허용. 숫자(`"500"`, `"600"`)는 타입 오류 발생 → 굵기는 `css` prop의 `font-weight`로 보완.
+- **variant**: `Rating`은 `variant="full"` 또는 `variant="iconOnly"` 등 필수일 수 있음. 오류 시 패키지 타입 정의 확인.
+- **스타일 오버라이드**: TDS 컴포넌트에 `css` prop으로 Emotion 스타일 전달 가능. `!important`는 최소화.
+
+### 네이티브 HTML을 쓸 수 있는 경우
+- TDS Mobile에 **해당 컴포넌트가 없을 때** (예: 특수 레이아웃용 div, span)
+- **접근성/시맨틱**이 중요한 경우 (nav, main, section 등)
+- **성능·번들** 이슈로 간단한 마크업이 더 나을 때
+
+### 새 UI 추가 시 체크리스트
+1. [ ] 버튼 → `Button` / `TextButton` / `IconButton` 사용 가능한지 확인
+2. [ ] 문구/라벨 → `Text` 사용
+3. [ ] 한 줄/여러 줄 입력 → `TextField` / `TextArea` 사용
+4. [ ] 아이콘 → `Asset.Icon` + 아이콘 이름 확인
+5. [ ] 리스트/행 → `ListRow` 등 리스트 컴포넌트 확인
+6. [ ] 위에 없을 때만 `<button>`, `<input>`, `<div>` 등 네이티브 사용
+
+### 닫기/삭제 아이콘 통일 규칙
+
+**모든 닫기 및 삭제 버튼은 `icon-appsintoss-close-mono` 아이콘을 사용해요.**
+
+#### 1. 팝업/모달/라이트박스 닫기 버튼
+- **작가 미리보기 팝업, 결제 요청 팝업, 문의하기 팝업, 이미지 확대(라이트박스) 닫기 버튼** 등 모든 팝업/모달/라이트박스의 닫기 버튼
+  - `name`: `"icon-appsintoss-close-mono"` 사용
+  - `frameShape`: `Asset.frameShape.CleanW20` 또는 `CleanW24`
+  - `color`: 배경에 따라 조정
+    - 밝은 배경: `"#CFB59E"` 또는 `"#6C4D38"`
+    - 어두운 배경(라이트박스 등): `"#ffffff"`
+  - 예시 (밝은 배경):
+    ```tsx
+    <button
+      type="button"
+      css={closeButtonStyle}
+      onClick={onClose}
+      aria-label="닫기"
+    >
+      <Asset.Icon
+        frameShape={Asset.frameShape.CleanW20}
+        name="icon-appsintoss-close-mono"
+        color="#CFB59E"
+        aria-hidden={true}
+      />
+    </button>
+    ```
+  - 예시 (어두운 배경 - 라이트박스):
+    ```tsx
+    <button
+      type="button"
+      css={lightboxCloseButtonStyle}
+      onClick={onClose}
+      aria-label="닫기"
+    >
+      <Asset.Icon
+        frameShape={Asset.frameShape.CleanW20}
+        name="icon-appsintoss-close-mono"
+        color="#ffffff"
+        aria-hidden={true}
+      />
+    </button>
+    ```
+
+#### 2. 이미지 업로드 삭제 버튼
+- **리뷰 이미지 업로드, 채팅 이미지 업로드, 문의하기 이미지 업로드** 등 모든 이미지 업로드 후 삭제 버튼
+  - `name`: `"icon-appsintoss-close-mono"` 사용 (팝업 닫기와 동일)
+  - `frameShape`: `Asset.frameShape.CleanW20` 또는 `CleanW24`
+  - `color`: 배경에 따라 조정
+    - 어두운 배경(이미지 위 오버레이): `"#ffffff"`
+    - 밝은 배경: `"#6C4D38"` 또는 `"#CFB59E"`
+  - 예시 (어두운 배경):
+    ```tsx
+    <button
+      type="button"
+      css={imageRemoveButtonStyle}
+      onClick={handleRemove}
+      aria-label="이미지 제거"
+    >
+      <Asset.Icon
+        frameShape={Asset.frameShape.CleanW20}
+        name="icon-appsintoss-close-mono"
+        color="#ffffff"
+        aria-hidden={true}
+      />
+    </button>
+    ```
+  - 스타일 예시 (어두운 배경):
+    ```css
+    const imageRemoveButtonStyle = css`
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 28px;
+      height: 28px;
+      background: rgba(0, 0, 0, 0.6);
+      border: none;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      outline: none;
+
+      &:hover:not(:disabled) {
+        background: rgba(0, 0, 0, 0.8);
+        transform: scale(1.1);
+      }
+
+      &:focus,
+      &:focus-visible {
+        outline: none;
+      }
+    `;
+    ```
+
+#### 아이콘 통일 체크리스트
+새 닫기/삭제 버튼 추가 시:
+1. [ ] `icon-appsintoss-close-mono` 아이콘을 사용하나요?
+2. [ ] 배경에 맞는 색상을 사용하나요? (밝은 배경: `#CFB59E` 또는 `#6C4D38`, 어두운 배경: `#ffffff`)
+3. [ ] `frameShape`는 `CleanW20` 또는 `CleanW24`를 사용하나요?
+4. [ ] 포커스 시 `outline: none`을 적용했나요?
+5. [ ] `aria-label`을 적절히 설정했나요?
+
+---
+
+## 색상 시스템
+
+### 브랜드 컬러
+- **Primary**: `#6C4D38` (메인 브라운)
+- **Primary Gradient**: `linear-gradient(135deg, #6C4D38 0%, #8B6F5A 100%)`
+- **Secondary**: `#CFB59E` (연한 브라운)
+- **Background Light**: `#F7F2EF` (베이지)
+- **Text Primary**: `#2C1F17` (진한 브라운)
+- **Text Secondary**: `#8E6F5A` (중간 브라운)
+- **Text Muted**: `#B8A99A` (연한 브라운)
+
+### 배경 그라데이션
+- **Main Background**: `linear-gradient(135deg, #faf9f7 0%, #f5f3f0 50%, #ffffff 100%)`
+- **Card Background**: `linear-gradient(135deg, #F7F2EF 0%, #ffffff 100%)`
+- **Overlay Background**: `linear-gradient(135deg, #F7F2EF 0%, #ECF5FF 50%, #D7EAFF 100%)`
+
+### 상태 색상
+- **Error**: `#e53935`, `#f44336`
+- **Success**: `#4caf50`
+- **Warning**: `#ff9800`
+
+## 타이포그래피
+
+### 폰트 크기
+- **Large Title**: `36px` (font-weight: 800)
+- **Title**: `32px` (font-weight: 700-800)
+- **Subtitle**: `20-24px` (font-weight: 700)
+- **Body**: `16-17px` (font-weight: 400-500)
+- **Small**: `13-14px` (font-weight: 400-500)
+- **Caption**: `11-12px` (font-weight: 400)
+
+### 그라데이션 텍스트
+- 주요 타이틀에 그라데이션 적용:
+  ```css
+  background: linear-gradient(135deg, #6C4D38 0%, #8B6F5A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  ```
+
+### Letter Spacing
+- **Tight**: `-0.5px` (큰 타이틀)
+- **Normal**: `-0.2px` (중간 텍스트)
+- **Loose**: `-0.1px` (작은 텍스트)
+
+## 간격 시스템
+
+### 패딩
+- **Container**: `20-24px`
+- **Card**: `16-20px`
+- **Button**: `12-20px`
+- **Input**: `12-16px`
+- **Small**: `8-12px`
+
+### 갭 (Gap)
+- **Large**: `24-28px`
+- **Medium**: `16-20px`
+- **Small**: `12-14px`
+- **XSmall**: `8-10px`
+- **Tiny**: `4-6px`
+
+### 마진
+- **Section**: `32-36px`
+- **Element**: `16-24px`
+- **Small**: `8-12px`
+
+## Border Radius
+
+- **Large**: `24-28px` (카드, 팝업)
+- **Medium**: `18-20px` (버튼, 입력 필드)
+- **Small**: `12-16px` (작은 요소)
+- **Circle**: `50%` 또는 `999px` (프로필 이미지, 배지)
+
+## 그림자 (Box Shadow)
+
+### 기본 그림자
+- **Small**: `0 2px 12px rgba(0, 0, 0, 0.08)`
+- **Medium**: `0 4px 16px rgba(0, 0, 0, 0.1)`
+- **Large**: `0 8px 24px rgba(108, 77, 56, 0.15)`
+- **XLarge**: `0 12px 48px rgba(0, 0, 0, 0.4)` (팝업)
+
+### 브랜드 컬러 그림자
+- **Primary**: `0 4px 12px rgba(108, 77, 56, 0.25)`
+- **Hover**: `0 6px 20px rgba(108, 77, 56, 0.3)`
+
+## 애니메이션
+
+### 이징 함수
+- **Standard**: `cubic-bezier(0.4, 0, 0.2, 1)` (기본)
+- **Ease Out**: `cubic-bezier(0.4, 0, 0.2, 1)`
+- **Smooth**: `ease-out`
+
+### 애니메이션 시간
+- **Fast**: `0.2s` (hover, active)
+- **Normal**: `0.3-0.35s` (전환, 페이드)
+- **Slow**: `0.4-0.5s` (페이지 전환, 복잡한 애니메이션)
+
+### 애니메이션 패턴
+- **Fade In Up**: `opacity: 0 → 1`, `translateY(20-30px) → 0`, `scale(0.95) → 1`, `blur(4px) → 0`
+- **Slide In**: `translateX(20-40px) → 0`, `opacity: 0 → 1`, `scale(0.98) → 1`
+- **Scale**: `scale(1) → scale(1.05-1.1)` (hover)
+- **Lift**: `translateY(0) → translateY(-2px to -6px)` (hover)
+
+### 창(모달/팝업) 닫기 애니메이션
+- **모달·팝업·바텀시트**는 열릴 때뿐 아니라 **닫힐 때도** 애니메이션을 적용해요.
+- **구현 패턴** (참고: `ArtistApplicationPopup`, `GridView` PreviewPopup, `Onboarding`, `ContactPopup`):
+  1. **상태**: `isClosing`(boolean)을 두고, 닫기 버튼/배경 클릭 시 `setIsClosing(true)` 호출.
+  2. **스타일**: 오버레이·컨테이너 스타일을 `(isClosing: boolean) => css\`...\`` 형태로 두고, `isClosing`이면 **닫기 키프레임**, 아니면 **열기 키프레임**을 재생하도록 해요.
+  3. **닫기 키프레임**: 열기 키프레임의 **역방향** (예: 열기 `opacity 0→1, scale(0.95)→1, translateY(24px)→0, blur(4px)→0` → 닫기 `opacity 1→0, scale(1)→0.95, translateY(0)→24px, blur(0)→4px`).
+  4. **콜백 지연**: `setIsClosing(true)` 후 `setTimeout(() => { onClose(); setIsClosing(false); }, 350)` 처럼 **애니메이션 시간(보통 350ms)** 이 지난 뒤에만 `onClose()` 호출. 그래야 닫기 애니메이션이 끝난 뒤에만 DOM에서 제거돼요.
+  5. **이징·시간**: `cubic-bezier(0.4, 0, 0.2, 1)`, duration `0.35s`(350ms) 권장. 작은 알림 팝업은 `0.25s`(250ms)도 가능.
+  6. **닫는 중 클릭 방지**: `pointer-events: ${isClosing ? 'none' : 'auto'}` 로 오버레이에 적용해 닫는 동안 추가 클릭을 막아요.
+- **체크리스트** (새 모달/팝업 추가 시): [ ] `isClosing` 상태와 닫기 키프레임 적용했나요? [ ] `onClose()`를 애니메이션 종료 후에만 호출하나요? [ ] 이징과 duration이 가이드와 맞나요?
+
+## Glassmorphism 효과
+
+### 반투명 배경
+```css
+background: rgba(255, 255, 255, 0.6-0.95);
+backdrop-filter: blur(10-20px);
+border: 1px solid rgba(108, 77, 56, 0.08-0.1);
+```
+
+### 사용 예시
+- 헤더 (sticky)
+- 입력 필드
+- 카드 오버레이
+- 팝업 배경
+
+## 그라데이션
+
+### 배경 그라데이션
+- **Vertical**: `linear-gradient(to bottom, ...)`
+- **Diagonal**: `linear-gradient(135deg, ...)`
+- **Radial**: `radial-gradient(circle at ..., ...)`
+
+### 버튼 그라데이션
+- **Primary Button**: `linear-gradient(135deg, #6C4D38 0%, #8B6F5A 100%)`
+- **Hover**: `linear-gradient(135deg, #8B6F5A 0%, #6C4D38 100%)` (역방향)
+
+## Hover 효과
+
+### 카드/버튼 Hover
+```css
+&:hover {
+  transform: translateY(-2px to -6px) scale(1.02);
+  box-shadow: 0 6px 20px rgba(108, 77, 56, 0.15);
+  border-color: rgba(108, 77, 56, 0.12);
+}
+```
+
+### Active 상태
+```css
+&:active {
+  transform: translateY(0) scale(0.95-0.98);
+}
+```
+
+### 아이콘 Hover
+```css
+&:hover {
+  transform: scale(1.1-1.15) rotate(5deg);
+}
+```
+
+
+## 레이아웃 최적화 및 하드코딩 지양 원칙
+
+### 1. 동적 높이/크기 동기화 (Structural Synchronization)
+- 서로 다른 성격의 카드나 컴포넌트들의 높이를 맞춰야 할 때, **픽셀(px) 단위의 하드코딩된 높이를 사용하지 않아요.**
+- **구현 방법**: 기준이 되는 컴포넌트와 **동일한 내부 구조**를 가지되, 내용을 비우거나 `visibility: hidden` 처리를 하여 브라우저가 자연스럽게 동일한 높이를 계산하도록 유도해요.
+- **장점**: 폰트 크기, 여백, 시스템 설정 변경 시에도 모든 카드의 높이가 완벽하게 동기화돼요.
+  - 예시 (작가 신청 카드의 높이를 일반 작가 카드와 맞출 때):
+    ```tsx
+    {/* 일반 카드와 동일한 profileSection 구조를 유지하여 높이 동기화 */}
+    <div css={profileSectionStyle}>
+      <div css={profileImageContainerStyle} style={{ visibility: 'hidden' }} />
+      <div css={infoStyle} style={{ visibility: 'hidden' }}>
+        <h3 css={nameStyle}>Placeholder</h3>
+      </div>
+    </div>
+    ```
+
+### 2. 중앙 정렬 및 배치
+- 요소를 정중앙에 배치할 때 `marginTop: -12px`와 같은 **수동 오프셋(Offset) 사용을 최소화**해요.
+- **Flexbox/Grid 활용**: 부모 컨테이너에 `display: flex`, `align-items: center`, `justify-content: center`를 적용하여 논리적인 중앙 배치를 우선해요.
+- 전체 영역 중앙 배치가 필요할 때는 `position: absolute`와 `inset: 0`을 조합한 Flex 컨테이너를 활용해요.
+
+### 3. 비율 기반 레이아웃
+- 이미지나 카드 컨테이너의 크기는 `aspect-ratio` 속성을 활용하여 정의해요.
+- 특정 기기에서의 고정 크기보다는 **비율(1 / 1.7 등)**을 지정하여 다양한 모바일 화면 크기에서 일관된 디자인을 유지해요.
+
+### 4. 스타일 가이드 준수
+- 여백이나 간격은 프로젝트에 정의된 **간격 시스템(Gap, Padding, Margin)** 내의 값을 사용하며, 임의의 수치를 직접 입력하는 것을 지양해요.
+
+## 모바일 전용 (인앱토스)
+
+- **PC/데스크톱·태블릿은 고려하지 않는다.** 인앱토스 환경에서 모바일만 타깃이므로, `@media (min-width: ...)`·데스크톱 브레이크포인트·PC용 max-width 제한을 두지 않는다.
+- 레이아웃·폰트·간격은 **모바일 기준으로만** 설계한다. 반응형 미디어 쿼리(`@media (max-width: 768px)` 등)로 PC/모바일을 나누지 않고, 모바일 스타일만 적용한다.
+- 새 UI 추가 시 데스크톱 대응은 하지 않는다.
+
+## 반응형 디자인 (참고)
+
+- 이 프로젝트는 **모바일 전용**이므로, 별도 브레이크포인트나 태블릿/데스크톱 스타일을 추가하지 않는다.
+- 필요 시 뷰포트 기준 고정값만 사용 (예: `max-width: 100vw`, `width: 100%`).
+
+## 스크롤바 스타일
+
+### 커스텀 스크롤바
+```css
+&::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+&::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+&::-webkit-scrollbar-thumb {
+  background: rgba(108, 77, 56, 0.2);
+  border-radius: 2px;
+}
+
+&::-webkit-scrollbar-thumb:hover {
+  background: rgba(108, 77, 56, 0.3);
+}
+```
+
+## 오버플로우 관리
+
+### 가로 스크롤 방지
+```css
+overflow-x: hidden;
+width: 100%;
+max-width: 100vw;
+```
+
+### 세로 스크롤
+```css
+overflow-y: auto;
+scroll-behavior: smooth;
+```
+
+## 전환 효과
+
+### 기본 Transition
+```css
+transition: all 0.2s-0.3s cubic-bezier(0.4, 0, 0.2, 1);
+```
+
+### 특정 속성만
+```css
+transition: transform 0.3s ease, box-shadow 0.3s ease;
+```
+
+## 배지 (Badge)
+
+### 스타일
+```css
+background: linear-gradient(135deg, #e53935 0%, #f44336 100%);
+border: 2px solid #ffffff;
+box-shadow: 0 2px 8px rgba(229, 57, 53, 0.4);
+animation: badgePulse 2s ease-in-out infinite;
+```
+
+### 펄스 애니메이션
+```css
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+```
+
+## 빈 상태 (Empty State)
+
+### 스타일
+- 중앙 정렬
+- 아이콘/이모지 추가 (48-56px)
+- 안내 텍스트 (15-18px)
+- 서브 텍스트 (13px, opacity: 0.5)
+- 패딩: `60-80px 20px`
+
+## 로딩 상태
+
+### 스타일
+- 중앙 정렬
+- 아이콘/이모지 추가
+- 텍스트 (18px, opacity: 0.7)
+- 패딩: `60-80px 20px`
+
+## 포커스 상태
+
+### 입력 필드 포커스
+```css
+&:focus {
+  background: #ffffff !important;
+  border-color: rgba(108, 77, 56, 0.25) !important;
+  box-shadow: 0 0 0 3px rgba(108, 77, 56, 0.08) !important;
+  transform: translateY(-1px);
+}
+```
+
+### 모달·팝업 닫기 버튼 포커스
+- **라이트박스, 모달, 팝업의 X(닫기) 버튼**은 포커스 시 브라우저 기본 테두리(outline)가 뜨지 않도록 해요.
+- 클릭/탭 시 시각적 테두리가 필요 없으므로 `outline: none`을 적용해요.
+
+```css
+outline: none;
+
+&:focus,
+&:focus-visible {
+  outline: none;
+}
+```
+
+- 닫기 버튼 추가·수정 시 위 스타일을 함께 적용해 주세요.
+
+## Z-Index 계층
+
+- **Base**: `1`
+- **Sticky Header**: `10`
+- **Dropdown**: `20`
+- **Modal Overlay**: `1000`
+- **Modal Content**: `1001`
+- **Bottom Tab Bar**: `50`
+
+## 이미지 처리
+
+### 이미지 스타일
+```css
+user-select: none;
+-webkit-user-select: none;
+-webkit-touch-callout: none;
+-webkit-user-drag: none;
+object-fit: cover; /* 또는 contain */
+border-radius: 12-16px;
+```
+
+### 이미지 호버
+```css
+&:hover {
+  transform: scale(1.02-1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+```
+
+## 코드 스타일 가이드
+
+### CSS-in-JS (Emotion)
+- `@emotion/react` 사용
+- `css` prop 사용
+- 동적 스타일은 함수로 처리: `const style = (isActive: boolean) => css\`...\``
+
+### 컴포넌트 구조
+1. Props 인터페이스 정의
+2. 컴포넌트 로직
+3. 스타일 정의 (파일 하단)
+
+### 네이밍 컨벤션
+- 스타일 변수: `camelCase` + `Style` 접미사
+- 예: `containerStyle`, `buttonStyle`, `cardHoverStyle`
+
+## 주의사항
+
+1. **가로 스크롤 방지**: 모든 컨테이너에 `overflow-x: hidden`, `width: 100%`, `max-width: 100vw` 적용
+2. **애니메이션 성능**: `transform`과 `opacity`만 애니메이션 (레이아웃 변경 최소화)
+3. **접근성**: 모든 인터랙티브 요소에 `aria-label` 추가
+4. **플랫폼**: 모바일(인앱토스) 전용. PC/데스크톱은 고려하지 않는다.
+5. **일관성**: 동일한 패턴의 요소는 동일한 스타일 적용

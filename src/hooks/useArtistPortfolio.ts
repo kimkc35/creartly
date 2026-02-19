@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getArtist, getAllArtists } from '../firebase/firestore';
 import type { Artist } from '../firebase/types';
 
@@ -59,9 +59,10 @@ export function useArtistPortfolio(artistId: string | null) {
 /**
  * 전체 작가 목록 조회 훅
  * @param limitCount - 조회할 최대 개수
+ * @param userKey - 현재 로그인한 사용자 키
  * @returns 작가 목록과 로딩 상태
  */
-export function useArtists(limitCount = 20) {
+export function useArtists(limitCount = 20, userKey?: number | null) {
   const [artists, setArtists] = useState<Artist[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,7 +73,7 @@ export function useArtists(limitCount = 20) {
       setError(null);
 
       try {
-        const artistsData = await getAllArtists(limitCount);
+        const artistsData = await getAllArtists(limitCount, userKey);
         setArtists(artistsData);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : '작가 목록을 불러오는데 실패했습니다.';
@@ -84,11 +85,11 @@ export function useArtists(limitCount = 20) {
     };
 
     fetchArtists();
-  }, [limitCount]);
+  }, [limitCount, userKey]);
 
   const refresh = async () => {
     try {
-      const artistsData = await getAllArtists(limitCount);
+      const artistsData = await getAllArtists(limitCount, userKey);
       setArtists(artistsData);
     } catch (err) {
       console.error('Failed to refresh artists:', err);

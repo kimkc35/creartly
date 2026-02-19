@@ -1,9 +1,79 @@
 rules_version = '2';
 
+// =============================================================================
+// 보안 참고
+// - 규칙에서는 "요청자(본인)"를 식별할 수 없습니다. 클라이언트가 보낸 데이터만 검증 가능하므로,
+//   "본인 userKey와 일치할 때만 허용"은 규칙만으로는 불가능합니다. (요청자가 userKey를 위조해 보낼 수 있음)
+// - userKey 기반 접근 제어가 필요하면 Cloud Functions에서 토스 토큰을 검증한 뒤 Admin SDK로 쓰는 방식이 필요합니다.
+// - 아래는 경로·데이터 일치·크기 제한으로 일관성 및 남용 완화만 적용합니다.
+// =============================================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    // ----- 작가 (artists) -----
+    // 쓰기 시 artist 문서의 userKey와 경로 artistId 일치 검사는 불가(요청자 식별 불가).
+    // artistId는 문서 ID가 아니라 별도 필드일 수 있으므로, 크기만 제한.
+    match /artists/{artistId} {
+      allow read: if true;
+      allow write: if request.resource.size() < 500000;
+    }
+
+    match /artists/{artistId}/form/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /artists/{artistId}/information/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /artists/{artistId}/previews/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /artists/{artistId}/reviews/{reviewId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll(['artistId', 'userKey', 'rating', 'content', 'createdAt', 'updatedAt'])
+                    && request.resource.data.artistId == artistId
+                    && request.resource.size() < 50000;
+      allow update, delete: if true;
+    }
+
+    // ----- 사용자 (문서 ID = userKey) -----
+    // 경로 users/{userKey}에 쓸 때, 문서 크기만 제한. 본인 여부는 규칙으로 검증 불가.
+    match /users/{userKey} {
+      allow read: if true;
+      allow write: if request.resource.size() < 10000;
+    }
+
+    // ----- 커미션 -----
+    match /commissions/{commissionId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasAll(['artistId', 'clientUserKey', 'title', 'status', 'createdAt', 'updatedAt'])
+                    && request.resource.size() < 30000;
+      allow update, delete: if true;
+    }
+
+    // ----- 채팅 -----
+    // chatId 형식: "{artistUserKey}__{clientUserKey}" 또는 "dev__{clientUserKey}"
+    // 쓰기 시 채팅 문서의 clientUserKey/artistUserKey와 chatId 일치 여부는 검증 가능(데이터 일관성).
+    match /chats/{chatId} {
+      allow read: if true;
+      allow create: if request.resource.size() < 20000
+                    && request.resource.data.clientUserKey is number
+                    && (request.resource.data.artistUserKey is number || request.resource.data.artistId == 'admin');
+      allow update: if request.resource.size() < 20000;
+      allow delete: if false;  // 채팅방 삭제는 허용하지 않음
+    }
+
+    match /chats/{chatId}/messages/{messageId} {
+      allow read: if true;
+      allow create: if request.resource.data.chatId == chatId
+                    && request.resource.size() < 100000;
+      allow update, delete: if true;
     }
   }
 }

@@ -1,37 +1,64 @@
 /** @jsxImportSource @emotion/react */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@toss/tds-mobile';
 import { Rally } from './Rally';
 import { performTossLogin } from '../../utils/tossLogin';
+import { getAllArtists } from '../../firebase/firestore';
+import { getOneImageFromArtistImages } from '../../firebase/storage';
+import { appBrand } from '../../constants/brand';
 import {
   containerStyle,
   contentStyle,
   titleStyle,
-  imageStyle,
-  descriptionStyle,
+  topIconStyle,
+  bottomButtonContainerStyle,
   buttonStyle,
   errorButtonStyle,
   errorMessageStyle,
+  floatingImagesWrapperStyle,
+  floatingImageStyle,
 } from './styles';
 
 interface OnboardingProps {
-  onComplete: () => void;
+  onComplete: (userKey: number) => void;
+  isClosing: boolean;
 }
 
-export function Onboarding({ onComplete }: OnboardingProps) {
+export function Onboarding({ onComplete, isClosing }: OnboardingProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [floatingImageUrls, setFloatingImageUrls] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const artists = await getAllArtists(10, null);
+        const urls: string[] = [];
+        for (const artist of artists) {
+          if (urls.length >= 3 || cancelled) break;
+          const url = await getOneImageFromArtistImages(artist.id);
+          if (url) urls.push(url);
+        }
+        if (!cancelled) setFloatingImageUrls(urls);
+      } catch {
+        if (!cancelled) setFloatingImageUrls([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleLogin = async () => {
     setLoading(true);
     setError(false);
 
     try {
-      const accessToken = await performTossLogin();
+      const result = await performTossLogin();
 
-      if (accessToken) {
-        // 로그인 성공
-        onComplete();
+      if (result && result.userKey && result.name) {
+        console.log('로그인 성공 - userKey:', result.userKey, 'name:', result.name);
+        // 로그인 성공 - Firestore에 이미 저장됨
+        onComplete(result.userKey);
       } else {
         // 로그인 실패
         setError(true);
@@ -45,21 +72,33 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   };
 
   return (
-    <div css={containerStyle}>
+    <div css={containerStyle(isClosing)}>
+      {floatingImageUrls.length > 0 && (
+        <div css={floatingImagesWrapperStyle} aria-hidden>
+          {floatingImageUrls.map((url, index) => (
+            <img
+              key={url}
+              src={url}
+              alt=""
+              css={floatingImageStyle(index)}
+            />
+          ))}
+        </div>
+      )}
       <div css={contentStyle}>
         <Rally delay={0.1}>
-          <h1 css={titleStyle}>원하는 그림을{'\n'}원하는 스타일로</h1>
-        </Rally>
-
-        <Rally delay={0.3}>
           <img
-            src="https://firebasestorage.googleapis.com/v0/b/creartly-326fe.firebasestorage.app/o/source%2Ficon.png?alt=media&token=771269a6-e9ae-4f82-a293-6b3673a8e7a7"
-            alt="Creartly"
-            css={imageStyle}
+            src={appBrand.icon}
+            alt="크리아틀리"
+            css={topIconStyle}
           />
         </Rally>
-
-        <Rally delay={0.7}>
+        <Rally delay={0.25}>
+          <h1 css={titleStyle}>원하는 그림을{'\n'}원하는 스타일로</h1>
+        </Rally>
+      </div>
+      <div css={bottomButtonContainerStyle}>
+        <Rally delay={0.5}>
           <div>
             {error && (
               <p css={errorMessageStyle}>
@@ -72,7 +111,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               size="large"
               disabled={loading}
             >
-              {loading ? '로그인 중...' : error ? '다시 시도하기' : '로그인하여 시작하기'}
+              {loading ? '로그인하는 중이에요' : error ? '다시 시도할게요' : '로그인하고 시작할게요'}
             </Button>
           </div>
         </Rally>

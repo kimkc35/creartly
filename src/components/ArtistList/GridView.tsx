@@ -1,28 +1,35 @@
 /** @jsxImportSource @emotion/react */
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { css } from '@emotion/react';
-import { Button, IconButton, Rating } from '@toss/tds-mobile';
+import { Asset, Button, Rating, Text } from '@toss/tds-mobile';
 import type { Artist } from '../../firebase/types';
-import { getArtistPreviewImages } from '../../firebase/firestore';
+import { getArtistReviewCount } from '../../firebase/firestore';
+import { getArtistImagesUrls } from '../../firebase/storage';
+import { ArtistApplicationPopup } from './ArtistApplicationPopup';
 
 interface ArtistGridViewProps {
   artists: Artist[];
   onPopupStateChange?: (isOpen: boolean) => void;
   onViewProfile?: (artistId: string) => void;
+  userKey?: number | null;
+  onChatStart?: (chatId: string) => void;
 }
 
 interface PreviewPopupProps {
   artist: Artist;
   previewImages: string[];
+  previewImagesLoading: boolean;
   onClose: () => void;
   onViewProfile?: (artistId: string) => void;
   onPopupStateChange?: (isOpen: boolean) => void;
+  isClosing?: boolean;
 }
 
-function PreviewPopup({ artist, previewImages, onClose, onViewProfile, onPopupStateChange }: PreviewPopupProps) {
+function PreviewPopup({ artist, previewImages, previewImagesLoading, onClose, onViewProfile, onPopupStateChange, isClosing = false }: PreviewPopupProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [containerWidth, setContainerWidth] = useState<number>(0);
+  const [reviewCount, setReviewCount] = useState<number>(0);
 
   // 팝업이 열릴 때 body 스크롤 방지 및 상태 전달
   useEffect(() => {
@@ -38,17 +45,23 @@ function PreviewPopup({ artist, previewImages, onClose, onViewProfile, onPopupSt
     };
   }, [onPopupStateChange]);
 
-  // ratings와 reviewers를 사용하여 평균 별점 계산 (0-5 범위)
+  // 리뷰 개수 로드
+  useEffect(() => {
+    getArtistReviewCount(artist.id).then((count) => {
+      setReviewCount(count);
+    });
+  }, [artist.id]);
+
+  // ratings와 reviewCount를 사용하여 평균 별점 계산 (0-5 범위)
   const getAverageRating = () => {
-    const ratings = (artist as any).ratings ?? 0; // 전체 별점 합계
-    const reviewers = (artist as any).reviewers ?? 0; // 리뷰어 수
+    const ratings = artist.ratings ?? 0; // 전체 별점 합계
     
-    if (reviewers === 0) {
+    if (reviewCount === 0) {
       return 0;
     }
     
-    // 평균 별점 계산: 전체 별점 합계 / 리뷰어 수
-    const average = ratings / reviewers;
+    // 평균 별점 계산: 전체 별점 합계 / 리뷰 문서 개수
+    const average = ratings / reviewCount;
     // 평균을 0-5 범위로 제한
     return Math.min(5, Math.max(0, Math.round(average * 10) / 10));
   };
@@ -83,48 +96,22 @@ function PreviewPopup({ artist, previewImages, onClose, onViewProfile, onPopupSt
     }
   }, [previewImages.length]);
 
-  useEffect(() => {
-    if (!scrollContainerRef.current) return;
-
-    const updateWidth = () => {
-      if (scrollContainerRef.current) {
-        // getBoundingClientRect로 정확한 너비 계산 (padding 포함)
-        const rect = scrollContainerRef.current.getBoundingClientRect();
-        setContainerWidth(rect.width);
-      }
-    };
-
-    // 초기 너비 설정 (약간의 지연으로 렌더링 완료 후 계산)
-    const timeoutId = setTimeout(updateWidth, 0);
-    
-    // ResizeObserver를 사용하여 더 정확하게 너비 추적
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setContainerWidth(entry.contentRect.width);
-      }
-    });
-
-    resizeObserver.observe(scrollContainerRef.current);
-    window.addEventListener('resize', updateWidth);
-    
-    return () => {
-      clearTimeout(timeoutId);
-      resizeObserver.disconnect();
-      window.removeEventListener('resize', updateWidth);
-    };
-  }, [previewImages.length]);
-
   return (
-    <div css={popupOverlayStyle} onClick={onClose}>
-      <div css={popupContainerStyle} onClick={(e) => e.stopPropagation()}>
-        <IconButton
-          src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE4IDZMNiAxOE02IDZMMTggMTgiIHN0cm9rZT0iY3VycmVudENvbG9yIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgo8L3N2Zz4K"
+    <div css={popupOverlayStyle(isClosing)} onClick={onClose}>
+      <div css={popupContainerStyle(isClosing)} onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          css={closeButtonStyle}
           onClick={onClose}
           aria-label="닫기"
-          variant="clear"
-          color="#CFB59E"
-          css={closeButtonStyle}
-        />
+        >
+          <Asset.Icon
+            frameShape={Asset.frameShape.CleanW20}
+            name="icon-appsintoss-close-mono"
+            color="#CFB59E"
+            aria-hidden={true}
+          />
+        </button>
         
         <div css={popupHeaderStyle}>
           <div css={popupHeaderTopStyle}>
@@ -149,23 +136,17 @@ function PreviewPopup({ artist, previewImages, onClose, onViewProfile, onPopupSt
         
         <p css={popupIntroductionStyle}>{artist.introduction}</p>
         
-        {previewImages.length > 0 && (
-          <>
-            <div 
+        {previewImagesLoading ? (
+          <div css={previewImagesLoadingStyle}>이미지를 불러오는 중이에요.</div>
+        ) : previewImages.length > 0 ? (
+          <div css={previewImagesSectionStyle}>
+            <div
               css={previewImagesScrollContainerStyle}
               ref={scrollContainerRef}
             >
               <div css={previewImagesContainerStyle}>
                 {previewImages.map((url, index) => (
-                  <div
-                    key={index}
-                    css={previewImageWrapperStyle}
-                    style={containerWidth > 0 ? { 
-                      width: `${containerWidth}px`, 
-                      minWidth: `${containerWidth}px`,
-                      maxWidth: `${containerWidth}px`
-                    } : undefined}
-                  >
+                  <div key={index} css={previewImageWrapperStyle}>
                     <img
                       src={url}
                       alt={`Preview ${index + 1}`}
@@ -185,7 +166,9 @@ function PreviewPopup({ artist, previewImages, onClose, onViewProfile, onPopupSt
                 />
               ))}
             </div>
-          </>
+          </div>
+        ) : (
+          <div css={previewImagesEmptyStyle}>등록된 이미지가 없어요.</div>
         )}
 
         <Button
@@ -207,27 +190,55 @@ function PreviewPopup({ artist, previewImages, onClose, onViewProfile, onPopupSt
   );
 }
 
-export function ArtistGridView({ artists, onPopupStateChange, onViewProfile }: ArtistGridViewProps) {
+export function ArtistGridView({ artists, onPopupStateChange, onViewProfile, userKey, onChatStart }: ArtistGridViewProps) {
   const [activeArtistId, setActiveArtistId] = useState<string | null>(null);
   const [previewImagesMap, setPreviewImagesMap] = useState<Record<string, string[]>>({});
+  const [previewImagesLoadingId, setPreviewImagesLoadingId] = useState<string | null>(null);
+  const [isClosing, setIsClosing] = useState(false);
+  const [showApplicationPopup, setShowApplicationPopup] = useState(false);
+  const [isApplicationClosing, setIsApplicationClosing] = useState(false);
 
   const handleClick = (artistId: string) => {
     setActiveArtistId(artistId);
+    setIsClosing(false);
     
-    // 미리보기 이미지가 없으면 로드
+    // 미리보기 이미지가 없으면 Storage artists/{id}/images에서 로드 (최대 5개)
     if (!previewImagesMap[artistId]) {
-      getArtistPreviewImages(artistId).then((images) => {
+      setPreviewImagesLoadingId(artistId);
+      getArtistImagesUrls(artistId, 5).then((images) => {
         setPreviewImagesMap((prev) => ({ ...prev, [artistId]: images }));
+        setPreviewImagesLoadingId((id) => (id === artistId ? null : id));
+      }).catch(() => {
+        setPreviewImagesLoadingId((id) => (id === artistId ? null : id));
       });
     }
   };
 
   const handleClose = () => {
-    setActiveArtistId(null);
+    setIsClosing(true);
+    setTimeout(() => {
+      setActiveArtistId(null);
+      setPreviewImagesLoadingId(null);
+      setIsClosing(false);
+    }, 350); // 애니메이션 시간과 맞춤
+  };
+
+  const handleApplicationClose = () => {
+    setIsApplicationClosing(true);
+    setTimeout(() => {
+      setShowApplicationPopup(false);
+      setIsApplicationClosing(false);
+    }, 350);
+  };
+
+  const handleApplicationSuccess = (chatId: string) => {
+    onChatStart?.(chatId);
+    handleApplicationClose();
   };
 
   const activeArtist = activeArtistId ? artists.find(a => a.id === activeArtistId) : null;
   const activePreviewImages = activeArtistId ? (previewImagesMap[activeArtistId] || []) : [];
+  const activePreviewImagesLoading = activeArtistId !== null && previewImagesLoadingId === activeArtistId;
 
   return (
     <>
@@ -282,15 +293,54 @@ export function ArtistGridView({ artists, onPopupStateChange, onViewProfile }: A
             </div>
           </div>
         ))}
+        
+        {/* 작가 신청 카드 */}
+        <div css={applicationCardStyle} onClick={() => setShowApplicationPopup(true)}>
+          <div css={applicationCardContentStyle}>
+            <div css={applicationIconStyle}>
+              <Asset.Icon
+                frameShape={Asset.frameShape.CleanW40}
+                name="icon-plus-mono"
+                color="#6C4D38"
+                aria-hidden={true}
+              />
+            </div>
+            <Text typography="st13" fontWeight="bold" color="#6C4D38" css={applicationTextStyle}>
+              직접 작가가 되어 보세요!
+            </Text>
+          </div>
+          <div css={thumbnailContainerStyle} style={{ background: 'transparent' }} />
+          {/* 다른 카드들과 높이를 맞추기 위한 빈 프로필 섹션 */}
+          <div css={profileSectionStyle} style={{ background: 'transparent' }}>
+            <div css={profileImageContainerStyle} style={{ visibility: 'hidden' }} />
+            <div css={infoStyle} style={{ visibility: 'hidden' }}>
+              <h3 css={nameStyle}>Placeholder</h3>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {activeArtist && (
-        <PreviewPopup
-          artist={activeArtist}
-          previewImages={activePreviewImages}
-          onClose={handleClose}
+      {activeArtist &&
+        createPortal(
+          <PreviewPopup
+            artist={activeArtist}
+            previewImages={activePreviewImages}
+            previewImagesLoading={activePreviewImagesLoading}
+            onClose={handleClose}
+            onPopupStateChange={onPopupStateChange}
+            onViewProfile={onViewProfile}
+            isClosing={isClosing}
+          />,
+          document.body,
+        )}
+
+      {showApplicationPopup && (
+        <ArtistApplicationPopup
+          userKey={userKey ?? null}
+          onClose={handleApplicationClose}
+          onSuccess={handleApplicationSuccess}
           onPopupStateChange={onPopupStateChange}
-          onViewProfile={onViewProfile}
+          isClosing={isApplicationClosing}
         />
       )}
     </>
@@ -298,41 +348,63 @@ export function ArtistGridView({ artists, onPopupStateChange, onViewProfile }: A
 }
 
 const containerStyle = css`
-  max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
-
-  @media (max-width: 768px) {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+  animation: fadeInGrid 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  @keyframes fadeInGrid {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 `;
 
 const cardStyle = css`
   background: white;
-  border-radius: 12px;
+  border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(108, 77, 56, 0.1);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(108, 77, 56, 0.06);
+  position: relative;
+  animation: cardFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+  
+  @keyframes cardFadeIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95) translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
 
   &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 6px 16px rgba(108, 77, 56, 0.2);
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 8px 24px rgba(108, 77, 56, 0.15);
+    border-color: rgba(108, 77, 56, 0.12);
   }
 
   &:active {
-    transform: translateY(-2px);
+    transform: translateY(-2px) scale(1);
   }
 `;
 
 const thumbnailContainerStyle = css`
   width: 100%;
-  aspect-ratio: 0.7;
+  aspect-ratio: 1 / 1.7;
   overflow: hidden;
-  background: #F7F2EF;
+  background: linear-gradient(135deg, #F7F2EF 0%, #ffffff 100%);
   position: relative;
 `;
 
@@ -344,6 +416,11 @@ const thumbnailStyle = css`
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   -webkit-user-drag: none;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  ${cardStyle}:hover & {
+    transform: scale(1.05);
+  }
 `;
 
 const magnifyingGlassButtonStyle = css`
@@ -353,43 +430,34 @@ const magnifyingGlassButtonStyle = css`
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 10;
   padding: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 
   &:hover {
-    background: rgba(0, 0, 0, 0.7);
-    transform: scale(1.1);
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.15) rotate(5deg);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
   }
 
   &:active {
-    background: rgba(0, 0, 0, 0.8);
-    transform: scale(0.95);
-  }
-
-  @media (max-width: 768px) {
-    width: 32px;
-    height: 32px;
-    bottom: 8px;
-    right: 8px;
+    transform: scale(1.05) rotate(0deg);
   }
 `;
 
 const magnifyingGlassIconStyle = css`
-  width: 20px;
-  height: 20px;
-  filter: brightness(0) saturate(100%) invert(100%);
-
-  @media (max-width: 768px) {
-    width: 18px;
-    height: 18px;
-  }
+  width: 18px;
+  height: 18px;
+  filter: brightness(0) saturate(100%) invert(26%) sepia(37%) saturate(1081%)
+    hue-rotate(346deg) brightness(96%) contrast(88%);
 `;
 
 const profileSectionStyle = css`
@@ -401,27 +469,23 @@ const profileSectionStyle = css`
   position: relative;
   z-index: 1;
   background: white;
-
-  @media (max-width: 768px) {
-    padding: 12px;
-    gap: 8px;
-  }
+  padding: 12px;
+  gap: 8px;
 `;
 
 const profileImageContainerStyle = css`
-  width: 60px;
-  height: 60px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   overflow: hidden;
-  border: 2px solid #CFB59E;
-  background: #F7F2EF;
-  margin-top: -40px;
-  box-shadow: 0 2px 8px rgba(108, 77, 56, 0.1);
-
-  @media (max-width: 768px) {
-    width: 48px;
-    height: 48px;
-    margin-top: -30px;
+  border: 3px solid #CFB59E;
+  background: linear-gradient(135deg, #F7F2EF 0%, #ffffff 100%);
+  margin-top: -32px;
+  box-shadow: 0 4px 16px rgba(108, 77, 56, 0.2);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  ${cardStyle}:hover & {
+    transform: scale(1.1);
   }
 `;
 
@@ -441,59 +505,121 @@ const infoStyle = css`
 `;
 
 const nameStyle = css`
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
-  color: #6C4D38;
-  margin: 0 0 8px 0;
-
-  @media (max-width: 768px) {
-    font-size: 16px;
-    margin: 0 0 4px 0;
-  }
+  background: linear-gradient(135deg, #6C4D38 0%, #8B6F5A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 4px 0;
+  letter-spacing: -0.3px;
+  font-size: 17px;
 `;
 
 // Preview Popup Styles
-const popupOverlayStyle = css`
+const popupOverlayStyle = (isClosing: boolean) => css`
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 20px;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(8px);
+  animation: ${isClosing ? 'fadeOutOverlay' : 'fadeInOverlay'} 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: ${isClosing ? 'none' : 'auto'};
+  
+  @keyframes fadeInOverlay {
+    from {
+      opacity: 0;
+      backdrop-filter: blur(0px);
+    }
+    to {
+      opacity: 1;
+      backdrop-filter: blur(8px);
+    }
+  }
+  
+  @keyframes fadeOutOverlay {
+    from {
+      opacity: 1;
+      backdrop-filter: blur(8px);
+    }
+    to {
+      opacity: 0;
+      backdrop-filter: blur(0px);
+    }
+  }
 `;
 
-const popupContainerStyle = css`
+const popupContainerStyle = (isClosing: boolean) => css`
   background: white;
-  border-radius: 16px;
+  border-radius: 20px;
   max-width: 600px;
   width: 100%;
-  max-height: 90vh;
+  max-height: 85vh;
   overflow-y: auto;
   padding: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
   position: relative;
-
-  @media (max-width: 768px) {
-    padding: 20px;
-    max-height: 85vh;
+  animation: ${isClosing ? 'popupSlideOut' : 'popupSlideIn'} 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  
+  @keyframes popupSlideIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95) translateY(20px);
+      filter: blur(4px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      filter: blur(0);
+    }
+  }
+  
+  @keyframes popupSlideOut {
+    from {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      filter: blur(0);
+    }
+    to {
+      opacity: 0;
+      transform: scale(0.95) translateY(20px);
+      filter: blur(4px);
+    }
   }
 `;
 
 const closeButtonStyle = css`
   position: absolute !important;
-  top: 16px;
-  right: 16px;
+  top: 12px;
+  right: 12px;
   z-index: 10;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  outline: none;
+  transition: transform 0.2s ease;
 
-  @media (max-width: 768px) {
-    top: 12px;
-    right: 12px;
+  &:hover {
+    transform: scale(1.1);
+  }
+
+  &:focus,
+  &:focus-visible {
+    outline: none;
   }
 `;
 
@@ -511,8 +637,8 @@ const popupHeaderTopStyle = css`
 `;
 
 const popupProfileImageStyle = css`
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid #CFB59E;
@@ -521,56 +647,94 @@ const popupProfileImageStyle = css`
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   -webkit-user-drag: none;
-
-  @media (max-width: 768px) {
-    width: 40px;
-    height: 40px;
-  }
 `;
 
 const popupNameStyle = css`
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: #6C4D38;
   margin: 0;
-
-  @media (max-width: 768px) {
-    font-size: 20px;
-  }
 `;
 
 const popupIntroductionStyle = css`
-  font-size: 16px;
+  font-size: 14px;
   color: #6C4D38;
   line-height: 1.6;
-  margin: 0 0 24px 0;
+  margin: 0 0 20px 0;
+`;
 
-  @media (max-width: 768px) {
-    font-size: 14px;
-    margin-bottom: 20px;
+const previewImagesLoadingStyle = css`
+  text-align: center;
+  padding: 48px 20px;
+  color: #6C4D38;
+  font-size: 18px;
+  font-weight: 500;
+  opacity: 0.85;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+
+  &::before {
+    content: '✨';
+    font-size: 40px;
+    opacity: 0.5;
   }
+  padding: 40px 16px;
+  font-size: 16px;
+`;
+
+/** 이미지 없음 - 세부사항 정보 탭 emptyStyle과 동일한 톤 */
+const previewImagesEmptyStyle = css`
+  text-align: center;
+  padding: 80px 20px;
+  color: #6C4D38;
+  opacity: 0.6;
+  font-size: 18px;
+  font-weight: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+
+  &::before {
+    content: '🖼️';
+    font-size: 48px;
+    opacity: 0.4;
+  }
+  padding: 60px 16px;
+  font-size: 16px;
+`;
+
+/** 미리보기: 이미지 스크롤 + 인디케이터 한 컨테이너 (세부사항 정보 탭과 동일 디자인, 크기만 축소) */
+const previewImagesSectionStyle = css`
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 8px;
+  margin-bottom: 0;
 `;
 
 const previewImagesScrollContainerStyle = css`
   width: 100%;
-  height: 400px;
+  height: 280px;
   overflow-x: auto;
   overflow-y: hidden;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
   scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
   position: relative;
   box-sizing: border-box;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
 
   &::-webkit-scrollbar {
     display: none;
-  }
-
-  @media (max-width: 768px) {
-    height: 300px;
-    margin-bottom: 10px;
   }
 `;
 
@@ -579,6 +743,7 @@ const previewImagesContainerStyle = css`
   gap: 0;
   height: 100%;
   align-items: center;
+  min-height: 100%;
 `;
 
 const previewImageWrapperStyle = css`
@@ -586,44 +751,39 @@ const previewImageWrapperStyle = css`
   display: flex;
   align-items: center;
   justify-content: center;
-  scroll-snap-align: start;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
   flex-shrink: 0;
-  padding: 0 12px;
+  min-width: 100%;
+  width: 100%;
+  padding: 0 6px;
   box-sizing: border-box;
 
-  &:first-child {
-    padding-left: 0;
+  &:first-of-type {
+    padding-left: 8px;
   }
 
   &:last-child {
-    padding-right: 0;
-  }
-
-  @media (max-width: 768px) {
-    padding: 0 8px;
-
-    &:first-child {
-      padding-left: 0;
-    }
-
-    &:last-child {
-      padding-right: 0;
-    }
+    padding-right: 8px;
   }
 `;
 
 const previewImageStyle = css`
+  width: 100%;
+  height: auto;
   max-height: 100%;
   max-width: 100%;
-  width: 100%;
-  height: 100%;
   object-fit: contain;
-  border-radius: 8px;
-  background: #F7F2EF;
+  object-position: center;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #F7F2EF 0%, #ffffff 100%);
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   -webkit-user-drag: none;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  margin: 0 auto;
+  display: block;
 `;
 
 const previewIndicatorsStyle = css`
@@ -631,37 +791,42 @@ const previewIndicatorsStyle = css`
   justify-content: center;
   align-items: center;
   gap: 8px;
-  margin-bottom: 24px;
-
-  @media (max-width: 768px) {
-    margin-bottom: 20px;
-    gap: 6px;
-  }
+  padding: 10px 0 0;
+  margin: 0;
 `;
 
 const previewIndicatorDotStyle = (active: boolean) => css`
-  width: ${active ? '8px' : '6px'};
-  height: ${active ? '8px' : '6px'};
+  width: ${active ? '14px' : '10px'};
+  height: ${active ? '14px' : '10px'};
   border-radius: 50%;
-  background-color: ${active ? '#CFB59E' : '#E0E0E0'};
-  transition: all 0.2s ease;
+  background: ${active
+    ? 'linear-gradient(135deg, #6C4D38 0%, #8B6F5A 100%)'
+    : '#CFB59E'};
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: ${active ? '0 2px 8px rgba(108, 77, 56, 0.3)' : 'none'};
   cursor: pointer;
 
-  @media (max-width: 768px) {
-    width: ${active ? '7px' : '5px'};
-    height: ${active ? '7px' : '5px'};
+  &:hover {
+    transform: scale(1.2);
   }
 `;
 
 const viewProfileButtonStyle = css`
   width: 100%;
-  margin-top: 8px;
-  background: #CFB59E !important;
-  border-color: #CFB59E !important;
+  margin-top: 12px;
+  background: linear-gradient(135deg, #6C4D38 0%, #8B6F5A 100%) !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 16px rgba(108, 77, 56, 0.3) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 
-  &:hover {
-    background: #B8A18E !important;
-    border-color: #B8A18E !important;
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, #8B6F5A 0%, #6C4D38 100%) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(108, 77, 56, 0.4) !important;
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(0);
   }
 `;
 
@@ -676,4 +841,62 @@ const arrowIconStyle = css`
   width: 20px;
   height: 20px;
   filter: brightness(0) saturate(100%) invert(100%);
+`;
+
+const applicationCardStyle = css`
+  background: white;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 2px dashed rgba(108, 77, 56, 0.3);
+  position: relative;
+  animation: cardFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+
+  &:hover {
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 8px 24px rgba(108, 77, 56, 0.15);
+    border-color: rgba(108, 77, 56, 0.5);
+    background: linear-gradient(135deg, #faf9f7 0%, #ffffff 100%);
+  }
+
+  &:active {
+    transform: translateY(-2px) scale(1);
+  }
+`;
+
+const applicationCardContentStyle = css`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+`;
+
+const applicationIconStyle = css`
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(108, 77, 56, 0.1) 0%, rgba(108, 77, 56, 0.05) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  ${applicationCardStyle}:hover & {
+    transform: scale(1.1) rotate(90deg);
+    background: linear-gradient(135deg, rgba(108, 77, 56, 0.15) 0%, rgba(108, 77, 56, 0.08) 100%);
+  }
+`;
+
+const applicationTextStyle = css`
+  letter-spacing: -0.2px;
 `;

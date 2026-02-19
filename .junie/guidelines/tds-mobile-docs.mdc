@@ -1,0 +1,39 @@
+---
+alwaysApply: true
+---
+
+# TDS Mobile 문서 참고 룰
+
+UI 컴포넌트 구현·수정 시 **토스 TDS Mobile 공식 문서**를 참고해 주세요. 네이티브 HTML로 대체하기 전에 TDS 컴포넌트의 `variant`, `color`, `size` 등으로 원하는 스타일을 만들 수 있는지 먼저 확인해요.
+
+## 문서 URL
+
+- **기본 경로**: `https://tossmini-docs.toss.im/tds-mobile/components/{componentname}/`
+- **예시 (Button)**: [https://tossmini-docs.toss.im/tds-mobile/components/button/](https://tossmini-docs.toss.im/tds-mobile/components/button/)
+
+컴포넌트 이름은 소문자로, 예: `button`, `text-field`, `list-row`, `dialog` 등 문서 사이드바/경로에 맞춰 사용해요.
+
+## Button 컴포넌트 (참고)
+
+- **variant**: `"fill"` | `"weak"` — 채도·강조도 (fill: 강조, weak: 보조)
+- **color**: `"primary"` | `"danger"` | `"light"` | `"dark"` — 버튼 색 테마
+- **size**: `"small"` | `"medium"` | `"large"` | `"xlarge"`
+- **display**: `"inline"` | `"block"` | `"full"` — 너비/배치
+- **커스텀 색**이 필요하면 CSS 변수 사용:
+  - `--button-background-color`: 배경색
+  - `--button-color`: 텍스트 색
+  - `style={{ '--button-background-color': '#ffffff', '--button-color': '#2C1F17' } as CSSProperties }` 형태로 전달
+
+버튼은 **네이티브 `<button>`으로 대체하지 말고** TDS `Button`을 쓰고, `variant`·`color`(및 필요 시 CSS 변수)로 스타일을 맞춰 주세요.
+
+## 다른 컴포넌트
+
+- TextField, TextArea, ListRow, Modal, Dialog, Asset 등 각 컴포넌트도 `https://tossmini-docs.toss.im/tds-mobile/components/{componentname}/` 에서 API를 확인해요.
+- **새 컴포넌트 추가·수정 시**: 해당 컴포넌트 문서에서 지원하는 props(variant, color, size 등)를 확인한 뒤 적용해 주세요.
+
+## 체크리스트 (버튼·UI 수정 시)
+
+1. [ ] TDS Mobile에 해당 컴포넌트가 있나요? → 문서 URL로 확인
+2. [ ] `variant`, `color`, `size` 등으로 원하는 스타일을 만들 수 있나요?
+3. [ ] 커스텀 색이 필요하면 CSS 변수(예: `--button-background-color`)를 사용했나요?
+4. [ ] 네이티브 요소(`<button>`, `<input>` 등)로 바꾸기 전에 TDS 문서를 먼저 확인했나요?
